@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "churn-intelligence"
+version = "1.0.0"
+description = "Customer Lifetime Value & Churn Intelligence System — Nexvia Technologies DS-01"
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+
+dependencies = [
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "lightgbm>=4.0.0",
+    "shap>=0.42.0",
+    "lifelines>=0.27.0",
+    "streamlit>=1.28.0",
+    "altair>=5.0.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "SQLAlchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+causal = ["causalml>=0.14.0"]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "ipykernel>=6.0.0",
+    "nbformat>=5.9.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

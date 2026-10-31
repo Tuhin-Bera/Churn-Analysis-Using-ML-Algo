@@ -1,0 +1,36 @@
+# ==============================================================================
+# .streamlit/config.toml — Streamlit Application Configuration
+# ==============================================================================
+# Controls server behaviour, theme, and browser settings.
+# Committed to version control (no secrets here — those go in secrets.toml).
+
+[server]
+# Allow connections from all network interfaces (required for Docker / cloud)
+address = "0.0.0.0"
+port = 8501
+# Disable CORS warnings on cloud platforms
+enableCORS = false
+# Must be true in headless environments (Docker, Heroku, Railway, Render)
+headless = true
+# Prevents Streamlit from opening a browser automatically
+enableWebsocketCompression = false
+
+[browser]
+# Disable usage-analytics pings (keeps logs clean)
+gatherUsageStats = false
+
+[theme]
+# Dark colour palette matching our custom CSS
+base = "dark"
+primaryColor       = "#3b82f6"
+backgroundColor    = "#0f172a"
+secondaryBackgroundColor = "#1e293b"
+textColor          = "#f8fafc"
+font               = "sans serif"
+
+[runner]
+# Allow importing modules that use 'magic' patterns
+magicEnabled = true
+
+[logger]
+level = "warning"

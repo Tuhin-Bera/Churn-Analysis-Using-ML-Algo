@@ -33,6 +33,16 @@ import pickle
 import warnings
 warnings.filterwarnings("ignore")
 
+# Load environment variables from .env file (if present).
+# python-dotenv silently skips if the file doesn't exist, so this is safe
+# on all deployment platforms (Heroku, Docker, Streamlit Cloud, etc.)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed; rely on OS environment variables
+
+
 # Ensure the root project directory is discoverable
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)

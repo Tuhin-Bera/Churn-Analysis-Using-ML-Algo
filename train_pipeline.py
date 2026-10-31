@@ -28,6 +28,14 @@ import pandas as pd
 import warnings
 warnings.filterwarnings("ignore")
 
+# Load .env variables so DATABASE_URL and PG_* credentials are available
+# when running locally or in CI before Streamlit starts.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # Ensure project root is available on sys.path regardless of execution directory
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)

@@ -1,9 +1,114 @@
+# ==============================================================================
+# .gitignore — Customer Lifetime Value & Churn Intelligence System
+# ==============================================================================
+
+# -----------------------------------------------------------------------
+# SECRETS & LOCAL CONFIG — never commit these
+# -----------------------------------------------------------------------
+.env
+*.env
+secrets.toml
+.streamlit/secrets.toml
+
+# -----------------------------------------------------------------------
+# PYTHON BYTECODE & CACHES
+# -----------------------------------------------------------------------
 __pycache__/
 *.py[cod]
-*$py.class
-.ipynb_checkpoints/
-.venv/
-env/
-venv/
-.DS_Store
+*.pyo
+*.pyd
+.Python
+*.pyc
 
+# -----------------------------------------------------------------------
+# VIRTUAL ENVIRONMENTS
+# -----------------------------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+.env.local
+.python-version
+
+# -----------------------------------------------------------------------
+# JUPYTER NOTEBOOK CHECKPOINTS
+# -----------------------------------------------------------------------
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# -----------------------------------------------------------------------
+# TRAINED MODEL ARTIFACTS (large binaries — regenerate via train_pipeline.py)
+# -----------------------------------------------------------------------
+outputs/*.pkl
+outputs/*.db
+outputs/*.sqlite
+
+# Keep CSV predictions and PNGs for quick inspection
+# Uncomment to also ignore them:
+# outputs/*.csv
+# outputs/*.png
+
+# -----------------------------------------------------------------------
+# DATA (raw dataset — download separately per README)
+# -----------------------------------------------------------------------
+data/*.csv
+data/*.xlsx
+data/*.json
+# Keep a placeholder so the folder exists in git
+!data/.gitkeep
+
+# -----------------------------------------------------------------------
+# OS ARTIFACTS
+# -----------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+
+# -----------------------------------------------------------------------
+# IDE / EDITOR CONFIGS
+# -----------------------------------------------------------------------
+.idea/
+.vscode/settings.json
+.vscode/*.code-workspace
+*.suo
+*.user
+*.sln.docstates
+
+# -----------------------------------------------------------------------
+# DOCKER RUNTIME
+# -----------------------------------------------------------------------
+.dockerignore
+docker-compose.override.yml
+
+# -----------------------------------------------------------------------
+# BUILD ARTIFACTS
+# -----------------------------------------------------------------------
+dist/
+build/
+*.egg-info/
+*.egg
+site/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# -----------------------------------------------------------------------
+# LOGS
+# -----------------------------------------------------------------------
+*.log
+logs/
+streamlit_logs/
+
+# -----------------------------------------------------------------------
+# TEMPORARY SCRATCH FILES
+# -----------------------------------------------------------------------
+scratch/
+tmp/
+*.tmp
+*.bak
+*.swp
+*.swo
