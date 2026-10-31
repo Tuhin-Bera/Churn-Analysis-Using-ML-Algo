@@ -1,12 +1,26 @@
 """
-app.py - Main Streamlit Entry Point
-=====================================
+app.py - Main Streamlit Dashboard Entry Point
+==============================================
 Customer Lifetime Value & Churn Intelligence System
 
-This is the main Streamlit app. It acts as the home/overview page
-and sets up the sidebar navigation for all sub-pages.
+This is the primary Streamlit entry point. It serves two distinct functions:
+1. Executive Overview & Portfolio KPI Summary:
+   Provides high-level leadership summaries answering the four core business questions:
+   - Who will leave? (LightGBM churn probability)
+   - How long will they stay? (Survival analysis remaining months)
+   - How much are they worth? (Discounted CLV)
+   - How can we retain them? (Uplift modeling target persuasion)
+   
+2. Multi-Page Navigation Hub:
+   Establishes sidebar routing across all deep-dive analytical pages:
+   - 1_EDA: Exploratory Data Analysis & Bivariate Distributions
+   - 2_Churn_Predictor: Individual Customer Lookups & Local SHAP Waterfall Plots
+   - 3_Survival_Analysis: Kaplan-Meier Curves & Cox Proportional Hazards
+   - 4_Uplift_Modeling: CausalML 4-Quadrant Targeting (Persuadables vs. Lost Causes)
+   - 5_CLV_Segments: Present Value CLV Distributions & 4-Cluster Profiles
+   - 6_ROI_Simulator: Dynamic Campaign Budget & Retention Offer Optimizer
 
-Run with:
+Execution:
     streamlit run app.py
 """
 
@@ -19,11 +33,14 @@ import pickle
 import warnings
 warnings.filterwarnings("ignore")
 
-# Ensure project root is in path
+# Ensure the root project directory is discoverable
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
-# ─── Page Configuration ───────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Streamlit Page Configuration & Global Theming
+# -----------------------------------------------------------------------------
+
 st.set_page_config(
     page_title="Churn Intelligence System | Nexvia",
     page_icon="📡",
@@ -31,14 +48,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ─── Custom CSS ───────────────────────────────────────────────────────────────
+# Custom CSS styling for an executive dark-mode user interface
 st.markdown("""
 <style>
-    /* Main background and typography */
+    /* Dark background canvas */
     .main { background-color: #0e1117; }
     .block-container { padding-top: 1rem; padding-bottom: 2rem; }
 
-    /* Metric cards */
+    /* Elevated KPI metric containers */
     [data-testid="metric-container"] {
         background: linear-gradient(135deg, #1e2130, #2a2f45);
         border-radius: 12px;
@@ -59,7 +76,7 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* Hero banner */
+    /* Hero header banner with gradient */
     .hero-banner {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 16px;
@@ -70,7 +87,7 @@ st.markdown("""
     .hero-banner h1 { font-size: 2.2rem; margin: 0; font-weight: 700; }
     .hero-banner p { font-size: 1.05rem; margin: 8px 0 0; opacity: 0.88; }
 
-    /* Info cards */
+    /* Strategic question cards */
     .info-card {
         background: #1a1f35;
         border-radius: 12px;
@@ -81,26 +98,14 @@ st.markdown("""
     .info-card h4 { color: #667eea; margin: 0 0 8px; }
     .info-card p { color: #cbd5e0; margin: 0; font-size: 0.9rem; }
 
-    /* Status badge */
-    .status-badge {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 0.78rem;
-        font-weight: 600;
-    }
-    .badge-high { background: #fed7d7; color: #c53030; }
-    .badge-low  { background: #c6f6d5; color: #276749; }
-    .badge-med  { background: #feebc8; color: #c05621; }
-
-    /* Sidebar */
+    /* Sidebar navigation styling */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #1a1f35 0%, #0e1117 100%);
         border-right: 1px solid #2d3748;
     }
     [data-testid="stSidebar"] .element-container { color: #e2e8f0; }
 
-    /* Section headers */
+    /* Uniform section headers */
     .section-header {
         font-size: 1.1rem;
         font-weight: 700;
@@ -113,11 +118,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ─── Data Loading (cached) ────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# High-Performance Data & Model Caching
+# -----------------------------------------------------------------------------
 
 @st.cache_data
 def load_master_data():
-    """Load the pre-computed master predictions CSV."""
+    """
+    Loads pre-computed customer predictions from the outputs directory.
+    Using @st.cache_data ensures the 7,043-row dataset is cached in memory,
+    preventing disk read delays during user interactions.
+    """
     path = os.path.join(ROOT, "outputs", "master_predictions.csv")
     if not os.path.exists(path):
         return None
@@ -127,7 +138,10 @@ def load_master_data():
 
 @st.cache_resource
 def load_model_artifacts():
-    """Load trained model and explainer (cached as resource)."""
+    """
+    Loads the serialized LightGBM model and SHAP TreeExplainer object.
+    Using @st.cache_resource guarantees model weights are only unpickled once.
+    """
     path = os.path.join(ROOT, "outputs", "lgbm_churn_model.pkl")
     if not os.path.exists(path):
         return None, None
@@ -138,7 +152,7 @@ def load_model_artifacts():
 
 @st.cache_data
 def load_meta():
-    """Load pipeline metadata (feature names, metrics, etc.)."""
+    """Loads pipeline metadata (feature names, test set metrics, segment mappings)."""
     path = os.path.join(ROOT, "outputs", "pipeline_meta.pkl")
     if not os.path.exists(path):
         return {}
@@ -146,13 +160,17 @@ def load_meta():
         return pickle.load(f)
 
 
-# ─── Sidebar ──────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Sidebar Navigation & Track Information
+# -----------------------------------------------------------------------------
+
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/000000/signal-tower.png", width=60)
     st.markdown("## Churn Intelligence")
     st.markdown("*Nexvia Technologies | DS-01*")
     st.markdown("---")
 
+    # Seamless page routing links
     st.markdown("### Navigation")
     st.page_link("app.py",              label="🏠 Overview & KPIs",        icon=None)
     st.page_link("pages/1_EDA.py",      label="📊 Exploratory Analysis",    icon=None)
@@ -166,9 +184,11 @@ with st.sidebar:
     st.markdown("**Track:** Data Science")
 
 
-# ─── Main Content ─────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Executive Landing Dashboard
+# -----------------------------------------------------------------------------
 
-# Hero banner
+# Primary Hero Callout
 st.markdown("""
 <div class="hero-banner">
     <h1>📡 Customer Lifetime Value & Churn Intelligence System</h1>
@@ -176,7 +196,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Check if pipeline has been run
+# Verify whether precomputed pipeline outputs exist
 df = load_master_data()
 model, explainer = load_model_artifacts()
 meta = load_meta()
@@ -193,7 +213,9 @@ if df is None:
     """)
     st.stop()
 
-# ─── KPI Row ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# High-Level Portfolio KPI Cards
+# -----------------------------------------------------------------------------
 st.markdown('<div class="section-header">Key Performance Indicators</div>', unsafe_allow_html=True)
 
 total_customers = len(df)
@@ -203,6 +225,7 @@ avg_clv = df["clv_estimate"].mean()
 avg_survival = df["survival_months"].mean()
 metrics = meta.get("metrics", {})
 
+# Render 6 distinct operational metrics across the top row
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 col1.metric("Total Customers", f"{total_customers:,}")
 col2.metric("Avg Churn Probability", f"{churn_rate:.1%}")
@@ -213,7 +236,9 @@ col6.metric("Model ROC-AUC", f"{metrics.get('roc_auc', 'N/A')}")
 
 st.markdown("---")
 
-# ─── Four Business Questions ─────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Strategic Business Questions Section
+# -----------------------------------------------------------------------------
 st.markdown('<div class="section-header">The Four Business Questions We Answer</div>', unsafe_allow_html=True)
 
 q_col1, q_col2, q_col3, q_col4 = st.columns(4)
@@ -252,9 +277,12 @@ with q_col4:
 
 st.markdown("---")
 
-# ─── Segment Overview ─────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Customer Segment Snapshot
+# -----------------------------------------------------------------------------
 st.markdown('<div class="section-header">Customer Segment Snapshot</div>', unsafe_allow_html=True)
 
+# Compute segment aggregates dynamically
 seg_summary = df.groupby("customer_segment").agg(
     Count=("customerID", "count"),
     Avg_Churn_Prob=("churn_probability", "mean"),
@@ -268,7 +296,9 @@ seg_summary["Avg Tenure (mo)"] = seg_summary["Avg Tenure (mo)"].map("{:.1f}".for
 
 st.dataframe(seg_summary, use_container_width=True, hide_index=True)
 
-# ─── Model Performance Summary ────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Model Performance & Diagnostic Metrics
+# -----------------------------------------------------------------------------
 st.markdown("---")
 st.markdown('<div class="section-header">Model Performance Summary</div>', unsafe_allow_html=True)
 
@@ -279,7 +309,9 @@ m_col3.metric("Recall",    f"{metrics.get('recall', 0):.2%}")
 m_col4.metric("F1 Score",  f"{metrics.get('f1', 0):.2%}")
 m_col5.metric("ROC-AUC",   f"{metrics.get('roc_auc', 0):.4f}")
 
-# ─── Quick charts using Streamlit native ──────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Interactive Probability Distribution (Altair)
+# -----------------------------------------------------------------------------
 st.markdown("---")
 st.markdown('<div class="section-header">Churn Probability Distribution</div>', unsafe_allow_html=True)
 
@@ -288,8 +320,8 @@ import altair as alt
 chart_df = pd.DataFrame({"churn_probability": df["churn_probability"]})
 hist = alt.Chart(chart_df).mark_bar(color="#667eea", opacity=0.8).encode(
     x=alt.X("churn_probability:Q", bin=alt.Bin(maxbins=40),
-            title="Churn Probability"),
-    y=alt.Y("count()", title="Number of Customers"),
+            title="Predicted Churn Probability"),
+    y=alt.Y("count()", title="Customer Count"),
     tooltip=["count()"]
 ).properties(height=280).configure_axis(
     labelColor="#a0aec0", titleColor="#a0aec0"
@@ -304,4 +336,3 @@ st.info("""
 - Use **Churn Predictor** to look up individual customers
 - Use **ROI Simulator** to model our retention campaign budget
 """)
-

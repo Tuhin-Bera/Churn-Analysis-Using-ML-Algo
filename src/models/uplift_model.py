@@ -2,28 +2,35 @@
 Uplift Modeling Module — CausalML
 ===================================
 
-Uplift modeling answers a subtler question than churn prediction:
-"Which customers will stay BECAUSE of our offer, not despite it?"
+This module estimates Individual Treatment Effects (ITE) and models incremental customer response
+using CausalML meta-learners (S-Learner with LightGBM base regressor, and T-Learner fallback).
 
-There are 4 types of customers in any retention campaign:
-  1. Persuadables  — would churn without offer, stay WITH offer  ← WE WANT THESE
-  2. Sure Things   — would stay regardless (wasting money on them)
-  3. Lost Causes   — will churn regardless of offer
-  4. Do Not Disturb — might churn IF offered (rare, but real)
+Why Uplift Modeling is Superior to Standard Propensity Modeling:
+Standard churn classifiers rank customers strictly by their probability of leaving:
+    P(Churn = 1 | X)
 
-Since we don't have a real randomized experiment (treatment/control assignment),
-we use a meta-learner approach (S-Learner, T-Learner) and simulate
-treatment assignment based on a plausible business rule.
+However, offering discounts or incentives solely based on churn probability introduces massive inefficiencies:
+1. Sure Things: Loyal customers with low churn risk who would stay regardless. Offering them a discount
+   erodes margin without driving incremental retention.
+2. Lost Causes: High-risk customers who have already decided to leave due to moving, service outages,
+   or severe price sensitivity. Discounts will not change their decision, wasting marketing budget.
+3. Do Not Disturb (Sleeping Dogs): Customers whose churn risk might actually increase if contacted
+   (e.g., reminding them of an unused subscription or contract renewal).
+4. Persuadables: Customers who WILL churn without an incentive, but WILL STAY if an offer is extended.
+   THIS is the only cohort that generates positive return on retention investment!
 
-This is academically honest — we explicitly document the limitation.
+Uplift Formula:
+    ITE = E[Y | X, Treatment = 1] - E[Y | X, Treatment = 0]
+    
+Where:
+    - Treatment = 1: Received retention discount offer
+    - Treatment = 0: Standard organic experience (control)
+    - Y = Outcome (1 if churned, 0 if retained)
 
-NOTE ON DATA LIMITATION:
-  True uplift modeling requires randomized control trial data.
-  The IBM Telco dataset doesn't have this. So we simulate treatment assignment
-  using a rule that mimics what a real business might do:
-    - Customers at medium-high churn risk (30-70%) get offered a discount
-    - Others don't
-  This is a simplified but educational demonstration.
+Data Limitation Note:
+True causal uplift modeling requires randomized A/B trial data (RCT). Because observational datasets
+like IBM Telco do not feature randomized offer assignments, we simulate a realistic business assignment rule:
+medium-to-high risk accounts receive offers with higher probability, and we model the resulting causal lift.
 """
 
 import os
@@ -39,23 +46,27 @@ OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "outputs")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
+# -----------------------------------------------------------------------------
+# Treatment Assignment Simulation
+# -----------------------------------------------------------------------------
+
 def simulate_treatment_assignment(churn_probs: pd.Series,
                                   seed: int = 42) -> pd.Series:
     """
-    Simulate which customers received a retention offer (treatment=1).
+    Simulates historical retention offer assignment (Treatment = 1 vs 0).
     
-    Business logic: medium-risk customers (30-70% churn probability)
-    are most likely to receive offers in practice. Very high-risk and
-    very low-risk customers are often excluded from discount campaigns.
-    
-    Returns a binary Series: 1 = received offer, 0 = did not receive offer
+    Business Logic:
+    In actual enterprise environments, marketing teams rarely discount ultra-loyal users
+    (churn_prob < 30%) and often deprioritize accounts deemed completely unsalvageable.
+    Therefore, medium-to-high risk customers (30% to 80% churn probability) receive the highest
+    treatment probability (~60%), mirroring typical CRM business rules.
     """
     rng = np.random.default_rng(seed)
-    # Base probability of receiving treatment (offer)
+    
     treatment_prob = np.where(
-        (churn_probs >= 0.3) & (churn_probs <= 0.8), 0.6,   # medium risk
-        np.where(churn_probs < 0.3, 0.2,                     # low risk
-                 0.4)                                         # very high risk
+        (churn_probs >= 0.3) & (churn_probs <= 0.8), 0.6,   # Primary retention target pool
+        np.where(churn_probs < 0.3, 0.2,                     # Incidental / test control pool
+                 0.4)                                         # High risk salvage pool
     )
     treatment = rng.binomial(1, treatment_prob)
     return pd.Series(treatment, name="treatment")
@@ -67,45 +78,52 @@ def simulate_outcome_with_treatment(churn_binary: pd.Series,
                                     lift_effect: float = 0.20,
                                     seed: int = 42) -> pd.Series:
     """
-    Simulate a post-treatment outcome (did they churn after receiving offer?).
+    Simulates counterfactual post-treatment outcomes:
+    Did the customer stay after receiving the retention incentive?
     
-    For treated customers who were going to churn (churn=1),
-    there's a `lift_effect` probability that they changed their mind.
-    
-    This is the synthetic outcome we'll use to train the uplift model.
+    Mechanism:
+    For treated customers who would otherwise have churned (churn_binary == 1),
+    we apply a 20% incremental lift effect (i.e., 20% of at-risk customers change
+    their decision and stay active due to the discount).
     """
     rng = np.random.default_rng(seed)
     outcome = churn_binary.copy().values.astype(int)
 
-    # For treated customers who originally churn: apply lift
+    # Filter for treated accounts at churn risk
     at_risk_treated = (treatment == 1) & (churn_binary == 1)
     n_affected = at_risk_treated.sum()
 
-    # Some percentage of these respond to the offer and don't churn
+    # Simulate true responders
     responders = rng.binomial(1, lift_effect, size=n_affected).astype(bool)
     idx = np.where(at_risk_treated)[0]
-    outcome[idx[responders]] = 0   # they stayed!
+    outcome[idx[responders]] = 0   # Saved by intervention!
 
     return pd.Series(outcome, name="outcome_churn")
 
+
+# -----------------------------------------------------------------------------
+# Uplift Meta-Learners (S-Learner & T-Learner)
+# -----------------------------------------------------------------------------
 
 def compute_uplift_scores(X: pd.DataFrame,
                           treatment: pd.Series,
                           outcome: pd.Series) -> pd.Series:
     """
-    S-Learner uplift model using LightGBM.
+    Computes Individual Treatment Effects (ITE) via a CausalML S-Learner.
     
-    S-Learner trains ONE model with treatment as a feature.
-    Uplift = P(outcome | T=1) - P(outcome | T=0)
-    
-    This gives us the estimated individual treatment effect (ITE).
-    Positive uplift -> customer is likely to respond to offer.
+    S-Learner Architecture:
+    Trains a single unified regression model f(X, W) where W is the binary treatment indicator.
+    The estimated uplift for any customer is given by:
+        Uplift(X) = f(X, W=1) - f(X, W=0)
+        
+    If CausalML is not installed or encounters environment issues, gracefully falls back
+    to a two-model T-Learner using scikit-learn Gradient Boosting.
     """
     try:
         from causalml.inference.meta import BaseSRegressor
         import lightgbm as lgb
 
-        # S-learner with LightGBM base
+        # S-Learner with LightGBM base regressor
         learner = BaseSRegressor(
             learner=lgb.LGBMRegressor(
                 n_estimators=200,
@@ -117,20 +135,18 @@ def compute_uplift_scores(X: pd.DataFrame,
             control_name=0
         )
 
-        # CausalML expects (X, treatment, y) — note treatment is the variable name
         X_with_t = X.copy()
         learner.fit(X_with_t, treatment.values, outcome.values)
         uplift = learner.predict(X_with_t, treatment=treatment.values)
 
-        # uplift is typically returned as ndarray
         if hasattr(uplift, "flatten"):
             uplift = uplift.flatten()
 
-        print(f"[Uplift] S-Learner computed. Uplift range: [{uplift.min():.3f}, {uplift.max():.3f}]")
+        print(f"[Uplift] CausalML S-Learner completed. Score range: [{uplift.min():.3f}, {uplift.max():.3f}]")
         return pd.Series(uplift, name="uplift_score")
 
     except Exception as e:
-        print(f"[Uplift] CausalML S-Learner failed ({e}). Falling back to manual computation.")
+        print(f"[Uplift] CausalML S-Learner fallback engaged ({e}). Running T-Learner.")
         return _manual_uplift(X, treatment, outcome)
 
 
@@ -138,11 +154,15 @@ def _manual_uplift(X: pd.DataFrame,
                    treatment: pd.Series,
                    outcome: pd.Series) -> pd.Series:
     """
-    Fallback: T-Learner approach with sklearn.
-    Trains two models — one for treated, one for control — then
-    computes ITE = P_treatment(churn) - P_control(churn).
+    T-Learner (Two-Learner) implementation.
     
-    We negate because we want high uplift = good (likely to stay with offer).
+    Fits two independent models:
+        mu_1(X) = E[Y | X, Treatment = 1]
+        mu_0(X) = E[Y | X, Treatment = 0]
+        
+    ITE is estimated as:
+        Uplift(X) = mu_0(X) - mu_1(X)
+        (Positive values indicate the discount reduces churn probability).
     """
     from sklearn.ensemble import GradientBoostingClassifier
 
@@ -157,22 +177,32 @@ def _manual_uplift(X: pd.DataFrame,
     model_t.fit(X_t, y_t)
     model_c.fit(X_c, y_c)
 
-    # ITE = P(churn | treated) - P(churn | control)
-    # Negative ITE means treatment REDUCES churn -> good!
+    # Positive score = intervention saves the customer
     p_treated = model_t.predict_proba(X)[:, 1]
     p_control = model_c.predict_proba(X)[:, 1]
-    ite = p_control - p_treated  # positive = offer helps
+    ite = p_control - p_treated
 
-    print(f"[Uplift] T-Learner fallback. Uplift range: [{ite.min():.3f}, {ite.max():.3f}]")
+    print(f"[Uplift] T-Learner completed. Score range: [{ite.min():.3f}, {ite.max():.3f}]")
     return pd.Series(ite, name="uplift_score")
 
+
+# -----------------------------------------------------------------------------
+# Customer Quadrant Categorization & Visualization
+# -----------------------------------------------------------------------------
 
 def categorize_uplift(uplift_scores: pd.Series,
                       churn_probs: pd.Series) -> pd.Series:
     """
-    Classify customers into the four Qini quadrants.
+    Maps each customer into the classical 4-quadrant uplift decision matrix:
     
-    Persuadables (high uplift + high churn risk) = priority targets
+    1. Persuadable: High Churn Probability (>0.40) & Positive Uplift (>0.05).
+       -> Primary targets for promotional discounts.
+    2. Lost Cause: High Churn Probability (>0.40) & Low Uplift (<=0.05).
+       -> Skip discount offers; cannot be persuaded.
+    3. Sure Thing: Low Churn Probability (<=0.40) & Positive Uplift (>0.05).
+       -> Skip discount offers; already satisfied.
+    4. Do Not Disturb: Low Churn Probability (<=0.40) & Non-positive Uplift (<=0.05).
+       -> Do not disturb with marketing pushes.
     """
     categories = []
     for u, c in zip(uplift_scores, churn_probs):
@@ -189,18 +219,20 @@ def categorize_uplift(uplift_scores: pd.Series,
 
 def plot_uplift_distribution(uplift_scores: pd.Series,
                              categories: pd.Series, save: bool = True):
-    """Histogram of uplift scores colored by category."""
+    """
+    Visualizes uplift score distribution and frequency breakdown across the 4 quadrants.
+    """
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    # Left: distribution
+    # Distribution histogram
     axes[0].hist(uplift_scores, bins=50, color="steelblue", edgecolor="white", alpha=0.8)
-    axes[0].axvline(0, color="red", linestyle="--", label="Zero uplift")
-    axes[0].set_title("Distribution of Uplift Scores", fontsize=12)
-    axes[0].set_xlabel("Uplift Score (ITE)")
+    axes[0].axvline(0, color="red", linestyle="--", label="Zero Uplift Baseline")
+    axes[0].set_title("Distribution of Uplift Scores (ITE)", fontsize=12)
+    axes[0].set_xlabel("Estimated Individual Treatment Effect")
     axes[0].set_ylabel("Customer Count")
     axes[0].legend()
 
-    # Right: category counts
+    # Category breakdown bar chart
     cat_counts = categories.value_counts()
     colors_map = {
         "Persuadable": "green",
@@ -210,12 +242,12 @@ def plot_uplift_distribution(uplift_scores: pd.Series,
     }
     bar_colors = [colors_map.get(c, "steelblue") for c in cat_counts.index]
     cat_counts.plot(kind="bar", ax=axes[1], color=bar_colors, edgecolor="white")
-    axes[1].set_title("Customer Segments by Uplift Category", fontsize=12)
-    axes[1].set_xlabel("Category")
-    axes[1].set_ylabel("Count")
+    axes[1].set_title("Customer Segmentation by Uplift Quadrant", fontsize=12)
+    axes[1].set_xlabel("Uplift Quadrant")
+    axes[1].set_ylabel("Customer Count")
     axes[1].tick_params(axis="x", rotation=30)
 
-    plt.suptitle("Uplift Modeling Results (CausalML S-Learner)", fontsize=13, y=1.01)
+    plt.suptitle("CausalML Uplift Modeling Results", fontsize=13, y=1.01)
     plt.tight_layout()
 
     if save:

@@ -2,15 +2,23 @@
 LightGBM Churn Classifier + SHAP Explainer
 ============================================
 
-This module trains the main churn prediction model.
-We chose LightGBM over XGBoost because:
-  1. Faster training on this size dataset
-  2. Better handling of categorical features
-  3. Lower memory usage
+This module trains and evaluates the primary customer churn classifier using LightGBM
+and interprets its predictions using SHAP (SHapley Additive exPlanations).
 
-SHAP (SHapley Additive exPlanations) is used to understand WHY the model
-predicts what it predicts — crucial for business stakeholders who need
-justification before acting on model outputs.
+Model Selection Rationale:
+We selected LightGBM (Light Gradient Boosting Machine) for the following reasons:
+1. Computational Efficiency: Uses histogram-based binning and leaf-wise tree growth,
+   drastically reducing training latency compared to traditional XGBoost or Random Forests.
+2. Imbalance Handling: The IBM Telco dataset exhibits an imbalanced target (~26.5% churn).
+   Configuring 'scale_pos_weight' penalizes false negatives on churners proportionally.
+3. Early Stopping Support: Prevents overfitting on tabular features by halting tree growth
+   when validation metric ceases to improve.
+
+Explainability Rationale:
+In enterprise decision-making, black-box predictions are rarely adopted by marketing leadership.
+Using SHAP TreeExplainer (derived from game-theoretic Shapley values), we compute exact marginal
+feature attributions for every individual customer prediction, enabling marketing teams to answer
+"WHY is this specific customer at risk?" before taking retention action.
 """
 
 import os
@@ -20,7 +28,7 @@ import pandas as pd
 import lightgbm as lgb
 import shap
 import matplotlib
-matplotlib.use("Agg")   # non-interactive backend for saving figures
+matplotlib.use("Agg")   # Use non-interactive backend for headless plot generation
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import (
@@ -32,23 +40,31 @@ from sklearn.model_selection import StratifiedKFold, cross_val_score
 import warnings
 warnings.filterwarnings("ignore")
 
-# Output directory for saved artifacts
+# Define target artifact output directory
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "outputs")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-# --- model training -----------------------------------------------------------
+# -----------------------------------------------------------------------------
+# LightGBM Classifier Training
+# -----------------------------------------------------------------------------
 
 def train_churn_model(X_train, y_train, X_val=None, y_val=None):
     """
-    Train a LightGBM binary classifier.
+    Trains a binary LightGBM gradient boosted decision tree classifier.
     
-    Hyperparameters were chosen after quick experimentation.
-    scale_pos_weight handles the class imbalance (≈26% churn rate).
+    Hyperparameter Logic:
+    - objective='binary': Log-loss objective for probability calibration.
+    - metric='auc': Area Under the ROC Curve ensures threshold-independent ranking quality.
+    - scale_pos_weight: Ratio of negative to positive samples (~2.76x).
+      This forces the algorithm to penalize missed churners heavily, boosting recall.
+    - learning_rate=0.05 & n_estimators=500: Conservative step size paired with early stopping
+      ensures optimal convergence without overfitting.
+    - num_leaves=31 & min_child_samples=20: Regularizes tree complexity.
     """
     n_pos = y_train.sum()
     n_neg = len(y_train) - n_pos
-    scale_pos_weight = n_neg / n_pos  # upweight minority (churn) class
+    scale_pos_weight = n_neg / n_pos  # ~2.76 for 26.5% churn rate
 
     params = {
         "objective": "binary",
@@ -59,8 +75,8 @@ def train_churn_model(X_train, y_train, X_val=None, y_val=None):
         "num_leaves": 31,
         "max_depth": -1,
         "min_child_samples": 20,
-        "feature_fraction": 0.8,
-        "bagging_fraction": 0.8,
+        "feature_fraction": 0.8,   # Subsamples 80% of features per tree split
+        "bagging_fraction": 0.8,   # Subsamples 80% of rows to reduce variance
         "bagging_freq": 5,
         "scale_pos_weight": scale_pos_weight,
         "random_state": 42,
@@ -70,24 +86,37 @@ def train_churn_model(X_train, y_train, X_val=None, y_val=None):
 
     model = lgb.LGBMClassifier(**params)
 
+    # If validation data is available, apply early stopping after 50 non-improving rounds
     if X_val is not None and y_val is not None:
         model.fit(
             X_train, y_train,
             eval_set=[(X_val, y_val)],
-            callbacks=[lgb.early_stopping(50, verbose=False),
-                       lgb.log_evaluation(period=-1)]
+            callbacks=[
+                lgb.early_stopping(stopping_rounds=50, verbose=False),
+                lgb.log_evaluation(period=-1)
+            ]
         )
     else:
         model.fit(X_train, y_train)
 
-    print(f"[Model] LightGBM trained with {model.n_estimators_} trees.")
+    print(f"[Model] LightGBM trained successfully with {model.n_estimators_} trees.")
     return model
 
 
+# -----------------------------------------------------------------------------
+# Comprehensive Model Evaluation
+# -----------------------------------------------------------------------------
+
 def evaluate_model(model, X_test, y_test, save_plots: bool = True) -> dict:
     """
-    Full model evaluation with all the metrics the portal asks for.
-    Also saves confusion matrix and ROC curve plots.
+    Generates full classification diagnostics across multiple evaluation metrics:
+    - Accuracy: Overall correct predictions across both classes.
+    - Precision: Of all predicted churners, how many actually churned?
+    - Recall (Sensitivity): Of all true churners, how many did we catch? (Priority metric)
+    - F1-Score: Harmonic balance between precision and recall.
+    - ROC-AUC: Probability that a randomly chosen churner ranks higher than a stayer.
+    
+    Also generates and saves visual confusion matrices and ROC curves.
     """
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]
@@ -104,7 +133,7 @@ def evaluate_model(model, X_test, y_test, save_plots: bool = True) -> dict:
     for k, v in metrics.items():
         print(f"  {k:12s}: {v:.4f}")
 
-    print("\n[Model] Classification Report:")
+    print("\n[Model] Detailed Classification Report:")
     print(classification_report(y_test, y_pred, target_names=["Stay", "Churn"]))
 
     if save_plots:
@@ -116,7 +145,7 @@ def evaluate_model(model, X_test, y_test, save_plots: bool = True) -> dict:
 
 
 def _plot_confusion_matrix(y_test, y_pred):
-    """Save confusion matrix heatmap."""
+    """Generates and saves a clean confusion matrix heatmap."""
     cm = confusion_matrix(y_test, y_pred)
     fig, ax = plt.subplots(figsize=(5, 4))
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
@@ -131,12 +160,12 @@ def _plot_confusion_matrix(y_test, y_pred):
 
 
 def _plot_roc_curve(model, X_test, y_test):
-    """Save ROC curve."""
+    """Generates and saves the Receiver Operating Characteristic (ROC) curve."""
     fig, ax = plt.subplots(figsize=(5, 4))
     RocCurveDisplay.from_estimator(model, X_test, y_test, ax=ax, name="LightGBM")
-    ax.plot([0, 1], [0, 1], "k--", label="Random")
+    ax.plot([0, 1], [0, 1], "k--", label="Random Chance (AUC = 0.50)")
     ax.set_title("ROC Curve — Churn Classifier", fontsize=13, pad=12)
-    ax.legend()
+    ax.legend(loc="lower right")
     plt.tight_layout()
     path = os.path.join(OUTPUT_DIR, "roc_curve.png")
     plt.savefig(path, dpi=150, bbox_inches="tight")
@@ -145,14 +174,14 @@ def _plot_roc_curve(model, X_test, y_test):
 
 
 def _plot_feature_importance(model, feature_names: list):
-    """Bar chart of top-20 feature importances."""
+    """Generates and saves a horizontal bar chart of top feature split gains."""
     importance = pd.Series(model.feature_importances_, index=feature_names)
     top20 = importance.nlargest(20).sort_values()
 
     fig, ax = plt.subplots(figsize=(8, 6))
     top20.plot(kind="barh", ax=ax, color="steelblue")
-    ax.set_title("Top 20 Feature Importances (LightGBM Gain)", fontsize=13, pad=12)
-    ax.set_xlabel("Importance")
+    ax.set_title("Top 20 Feature Importances (LightGBM Split Gain)", fontsize=13, pad=12)
+    ax.set_xlabel("Relative Importance Score")
     plt.tight_layout()
     path = os.path.join(OUTPUT_DIR, "feature_importance.png")
     plt.savefig(path, dpi=150, bbox_inches="tight")
@@ -160,14 +189,17 @@ def _plot_feature_importance(model, feature_names: list):
     print(f"[Plot] Saved feature importance -> {path}")
 
 
-# --- SHAP explainability ------------------------------------------------------
+# -----------------------------------------------------------------------------
+# SHAP Model Explainability
+# -----------------------------------------------------------------------------
 
 def compute_shap_values(model, X_background, X_explain=None):
     """
-    Compute SHAP values using TreeExplainer (fastest for tree models).
+    Computes game-theoretic SHAP values via TreeExplainer.
     
-    X_background: the training data (used to build the explainer)
-    X_explain: data to explain — defaults to X_background (summary plots)
+    Why TreeExplainer:
+    TreeExplainer computes exact Shapley values in polynomial time rather than
+    exponential sampling time, making it suitable for production gradient boosting trees.
     """
     if X_explain is None:
         X_explain = X_background
@@ -175,8 +207,8 @@ def compute_shap_values(model, X_background, X_explain=None):
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X_explain)
 
-    # For binary classification, LightGBM returns either a 2D array or
-    # a list of 2 arrays — we want the positive class (index 1)
+    # Binary LightGBM returns either an ndarray or a 2-element list for classes [0, 1]
+    # We extract class 1 (churn probability attributions)
     if isinstance(shap_values, list):
         shap_vals = shap_values[1]
     else:
@@ -187,7 +219,14 @@ def compute_shap_values(model, X_background, X_explain=None):
 
 
 def plot_shap_summary(explainer, shap_vals, X_explain, save: bool = True):
-    """Beeswarm summary plot — shows which features drive churn."""
+    """
+    Generates a SHAP beeswarm summary plot.
+    
+    Interpretation:
+    - Each dot is a customer observation.
+    - Position on x-axis indicates whether the feature increased or decreased churn risk.
+    - Color indicates feature value (red = high value, blue = low value).
+    """
     fig, ax = plt.subplots(figsize=(10, 7))
     shap.summary_plot(shap_vals, X_explain, show=False)
     plt.title("SHAP Summary — Feature Impact on Churn Probability", fontsize=13)
@@ -200,7 +239,7 @@ def plot_shap_summary(explainer, shap_vals, X_explain, save: bool = True):
 
 
 def plot_shap_bar(shap_vals, X_explain, save: bool = True):
-    """Mean absolute SHAP values — simpler bar chart version."""
+    """Generates a clean bar plot ranking features by mean absolute SHAP attribution."""
     mean_abs = pd.Series(
         np.abs(shap_vals).mean(axis=0),
         index=X_explain.columns
@@ -209,7 +248,7 @@ def plot_shap_bar(shap_vals, X_explain, save: bool = True):
     fig, ax = plt.subplots(figsize=(8, 6))
     mean_abs.plot(kind="barh", ax=ax, color="coral")
     ax.set_title("Mean |SHAP| Values — Top 15 Features", fontsize=13, pad=12)
-    ax.set_xlabel("Mean |SHAP value|")
+    ax.set_xlabel("Mean Absolute SHAP Attribution")
     plt.tight_layout()
     if save:
         path = os.path.join(OUTPUT_DIR, "shap_bar.png")
@@ -220,8 +259,8 @@ def plot_shap_bar(shap_vals, X_explain, save: bool = True):
 
 def explain_single_customer(explainer, X_row: pd.DataFrame):
     """
-    Returns a DataFrame of SHAP contributions for one customer.
-    Useful for the Streamlit 'Why will this customer churn?' view.
+    Extracts local feature attributions for an individual customer.
+    Powers the 'Why will this customer leave?' view on the Streamlit dashboard.
     """
     sv = explainer.shap_values(X_row)
     if isinstance(sv, list):
@@ -234,23 +273,25 @@ def explain_single_customer(explainer, X_row: pd.DataFrame):
     return contributions
 
 
-# --- model persistence --------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Model Persistence & Artifact Serialization
+# -----------------------------------------------------------------------------
 
 def save_model(model, explainer, path: str = None):
-    """Pickle the trained model and SHAP explainer."""
+    """Serializes the trained LightGBM model and SHAP explainer to disk."""
     if path is None:
         path = os.path.join(OUTPUT_DIR, "lgbm_churn_model.pkl")
     with open(path, "wb") as f:
         pickle.dump({"model": model, "explainer": explainer}, f)
-    print(f"[Model] Saved model to {path}")
+    print(f"[Model] Saved model bundle to {path}")
     return path
 
 
 def load_model(path: str = None):
-    """Load a previously trained model."""
+    """Loads a previously serialized model and explainer bundle."""
     if path is None:
         path = os.path.join(OUTPUT_DIR, "lgbm_churn_model.pkl")
     with open(path, "rb") as f:
         bundle = pickle.load(f)
-    print(f"[Model] Loaded model from {path}")
+    print(f"[Model] Loaded model bundle from {path}")
     return bundle["model"], bundle["explainer"]

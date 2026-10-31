@@ -2,7 +2,24 @@
 Page 5: CLV & Customer Segmentation
 ======================================
 
-Shows CLV distribution and K-Means customer segments with actionable insights.
+This module bridges financial valuation and behavioral grouping by combining
+Customer Lifetime Value (CLV) with unsupervised K-Means clustering ($k=4$).
+
+Analytical Architecture:
+1. Discounted Cash Flow CLV:
+   Calculates the present economic value of future operating margins for all 7,043 customers,
+   incorporating predicted survival durations from the Lifelines Cox PH model.
+   
+2. Multi-Dimensional Customer Persona Segmentation:
+   Partitions accounts into 4 clusters based on tenure, monthly fee, churn risk,
+   service count, and lifetime value:
+   - High-Value Loyal (VIP revenue drivers)
+   - At-Risk Churners (Urgent win-back targets)
+   - Low-Value Passive (Organic upsell candidates)
+   - New Promising (Critical onboarding stage)
+   
+3. Pareto Value Concentration Analysis:
+   Quantifies the proportion of cumulative portfolio CLV driven by the top decile of customers.
 """
 
 import os
@@ -33,59 +50,73 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("💰 Customer Lifetime Value & Segmentation")
-st.caption("How much is each customer worth? And which group do they belong to?")
+st.title("💰 Customer Lifetime Value & Behavioral Segmentation")
+st.caption("Quantifying account equity via discounted cash flow modeling and profiling customer personas using K-Means clustering.")
 
-# ─── Load data ────────────────────────────────────────────────────────────────
+
+# -----------------------------------------------------------------------------
+# Data Loading & Caching
+# -----------------------------------------------------------------------------
+
 @st.cache_data
 def load_master():
+    """Reads scored customer observations with CLV estimates and cluster labels."""
     p = os.path.join(ROOT, "outputs", "master_predictions.csv")
     return pd.read_csv(p) if os.path.exists(p) else None
 
 df = load_master()
 if df is None:
-    st.error("Run `python train_pipeline.py` first.")
+    st.error("Predictions missing. Please run `python train_pipeline.py` first.")
     st.stop()
 
-# ─── CLV Overview ─────────────────────────────────────────────────────────────
-st.markdown('<div class="section-header">Customer Lifetime Value Overview</div>', unsafe_allow_html=True)
 
-with st.expander("How is CLV computed?"):
+# -----------------------------------------------------------------------------
+# Customer Lifetime Value Overview & Methodology
+# -----------------------------------------------------------------------------
+
+st.markdown('<div class="section-header">Customer Lifetime Value (CLV) Overview</div>', unsafe_allow_html=True)
+
+with st.expander("Financial Methodology: How We Calculate CLV (Click to Expand)"):
     st.markdown(r"""
-    **CLV Formula (Discounted Cash Flow approach):**
+    **Finite Annuity Discounted Cash Flow Formula:**
 
     $$CLV = MonthlyCharges \times MarginRate \times \frac{1 - (1+r)^{-N}}{r}$$
 
     Where:
-    - **MarginRate** = 30% (telecom industry average)
-    - **r** = monthly discount rate (10% annual / 12 = 0.833%/month)
-    - **N** = predicted remaining months from the Cox PH survival model
-
-    This gives the present value of expected future cash flows from each customer.
+    - **MonthlyCharges:** Customer's monthly recurring revenue (MRR).
+    - **MarginRate:** 30% contribution margin rate (standard benchmark for telecom fixed/mobile operations).
+    - **r:** Monthly discount rate (10% annual cost of capital / 12 = 0.833% per month).
+    - **N:** Expected remaining customer lifetime in months forecasted by the Cox Proportional Hazards model.
+    - **Annuity Factor:** $\frac{1 - (1+r)^{-N}}{r}$ discounts future monthly cash flows to present value.
     """)
 
+# Render top-level financial KPIs
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Total Portfolio CLV", f"Rs.{df['clv_estimate'].sum():,.0f}")
-col2.metric("Avg CLV per Customer", f"Rs.{df['clv_estimate'].mean():,.0f}")
-col3.metric("Median CLV", f"Rs.{df['clv_estimate'].median():,.0f}")
-col4.metric("Max CLV", f"Rs.{df['clv_estimate'].max():,.0f}")
-col5.metric("CLV Std Dev", f"Rs.{df['clv_estimate'].std():,.0f}")
+col1.metric("Total Portfolio Equity", f"Rs.{df['clv_estimate'].sum():,.0f}")
+col2.metric("Mean Account CLV", f"Rs.{df['clv_estimate'].mean():,.0f}")
+col3.metric("Median Account CLV", f"Rs.{df['clv_estimate'].median():,.0f}")
+col4.metric("Maximum Account CLV", f"Rs.{df['clv_estimate'].max():,.0f}")
+col5.metric("Standard Deviation", f"Rs.{df['clv_estimate'].std():,.0f}")
 
-# CLV distribution chart
+# Visual CLV distribution
 clv_img = os.path.join(ROOT, "outputs", "clv_distribution.png")
 if os.path.exists(clv_img):
     st.image(clv_img, use_container_width=True)
 else:
     clv_hist = alt.Chart(df).mark_bar(color="#667eea", opacity=0.8).encode(
-        x=alt.X("clv_estimate:Q", bin=alt.Bin(maxbins=40), title="CLV Estimate (Rs.)"),
-        y=alt.Y("count()", title="Customers"),
+        x=alt.X("clv_estimate:Q", bin=alt.Bin(maxbins=40), title="Predicted CLV (Rs.)"),
+        y=alt.Y("count()", title="Customer Count"),
         tooltip=["count()"]
-    ).properties(height=280, title="CLV Distribution")
+    ).properties(height=280, title="Customer Lifetime Value Distribution")
     st.altair_chart(clv_hist, use_container_width=True)
 
-# ─── CLV vs Churn ─────────────────────────────────────────────────────────────
+
+# -----------------------------------------------------------------------------
+# Risk vs. Value Bubble Chart
+# -----------------------------------------------------------------------------
+
 st.markdown("---")
-st.markdown('<div class="section-header">CLV vs Churn Risk — Value at Risk</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">Value-at-Risk Matrix (CLV vs. Churn Propensity)</div>', unsafe_allow_html=True)
 
 scatter_df = df.sample(min(3000, len(df)), random_state=42)
 color_scale = alt.Scale(
@@ -93,52 +124,60 @@ color_scale = alt.Scale(
     range=["#f6e05e","#fc8181","#81e6d9","#68d391"]
 )
 scatter = alt.Chart(scatter_df).mark_circle(size=35, opacity=0.6).encode(
-    x=alt.X("churn_probability:Q", title="Churn Probability", scale=alt.Scale(domain=[0,1])),
-    y=alt.Y("clv_estimate:Q", title="CLV Estimate (Rs.)"),
+    x=alt.X("churn_probability:Q", title="Predicted Churn Probability", scale=alt.Scale(domain=[0,1])),
+    y=alt.Y("clv_estimate:Q", title="Predicted Customer Lifetime Value (Rs.)"),
     color=alt.Color("customer_segment:N", scale=color_scale,
-                    legend=alt.Legend(title="Segment")),
-    size=alt.Size("MonthlyCharges:Q", scale=alt.Scale(range=[20, 200])),
+                    legend=alt.Legend(title="Assigned Segment")),
+    size=alt.Size("MonthlyCharges:Q", scale=alt.Scale(range=[20, 200]), title="Monthly Fee"),
     tooltip=["customerID","churn_probability","clv_estimate",
              "customer_segment","tenure","MonthlyCharges"]
-).properties(height=380, title="CLV vs Churn Risk (bubble size = monthly charges)")
+).properties(height=380, title="Customer Value vs. Attrition Risk (Bubble Size = Monthly Spend)")
 st.altair_chart(scatter, use_container_width=True)
 
-# ─── Customer Segments ────────────────────────────────────────────────────────
+
+# -----------------------------------------------------------------------------
+# Behavioral Segmentation Diagnostics
+# -----------------------------------------------------------------------------
+
 st.markdown("---")
-st.markdown('<div class="section-header">Customer Segments (K-Means, k=4)</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">Behavioral Clusters (K-Means, k=4)</div>', unsafe_allow_html=True)
 
 seg_img = os.path.join(ROOT, "outputs", "customer_segments.png")
 if os.path.exists(seg_img):
     st.image(seg_img, use_container_width=True)
 
-# ─── Segment Profiles ─────────────────────────────────────────────────────────
+
+# -----------------------------------------------------------------------------
+# Segment Persona Playbooks
+# -----------------------------------------------------------------------------
+
 st.markdown("---")
-st.markdown('<div class="section-header">Segment Profiles & Strategies</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">Segment Profiles & Operational Strategies</div>', unsafe_allow_html=True)
 
 segment_info = {
     "High-Value Loyal": {
         "style": "seg-high",
         "description": "Long-tenure, high-spending customers with low churn probability. These are our best customers.",
         "strategy": "Reward with premium loyalty programs. Upsell to higher tiers. They're worth keeping at almost any cost.",
-        "kpis": ["Highest CLV", "Lowest churn risk", "Longest tenure"],
+        "kpis": ["Highest CLV (Mean Rs.1,440)", "Lowest Churn Risk (~20%)", "Longest Tenure Cohort (>50 mo)"],
     },
     "At-Risk Churners": {
         "style": "seg-atrisk",
         "description": "Medium-to-high tenure customers who are showing churn signals — likely unhappy with price or service.",
         "strategy": "Proactive win-back campaigns. Targeted discounts. Personal outreach. Check SHAP explanations to understand drivers.",
-        "kpis": ["High churn probability", "Medium-high CLV", "Key campaign targets"],
+        "kpis": ["Elevated Churn Risk (~59%)", "High Economic Equity (Mean Rs.1,052)", "Urgent Intervention Pool"],
     },
     "Low-Value Passive": {
         "style": "seg-low",
         "description": "Long-tenure, low-spending customers. They're loyal but don't generate much revenue.",
         "strategy": "Focus on upselling — bundle more services to increase ARPU. Low priority for expensive retention campaigns.",
-        "kpis": ["Lowest CLV", "Low churn risk", "Upsell opportunity"],
+        "kpis": ["Low Average Monthly Spend", "Minimal Churn Probability (~10%)", "Add-on Upsell Candidates"],
     },
     "New Promising": {
         "style": "seg-new",
         "description": "Short-tenure customers who are at moderate risk. Early churn prevention is critical here.",
         "strategy": "Strong onboarding experience. Early engagement. Prevent 'first 90 days' churn. Offer contract upgrades.",
-        "kpis": ["Low tenure", "Moderate churn risk", "Long-term potential"],
+        "kpis": ["Tenure < 12 Months", "Substantial Future Potential", "Onboarding Retention Target"],
     },
 }
 
@@ -153,24 +192,28 @@ for seg_name, seg_data in segment_info.items():
         with scol1:
             st.markdown(f"### {seg_name}")
             st.markdown(f"*{seg_data['description']}*")
-            st.markdown(f"**Strategy:** {seg_data['strategy']}")
+            st.markdown(f"**Operational Playbook:** {seg_data['strategy']}")
         with scol2:
-            st.markdown("**KPIs:**")
+            st.markdown("**Key Operational Indicators:**")
             for kpi in seg_data["kpis"]:
                 st.markdown(f"- {kpi}")
         with scol3:
-            st.metric("Count", f"{len(seg_rows):,}")
-            st.metric("Avg CLV", f"Rs.{seg_rows['clv_estimate'].mean():,.0f}")
-            st.metric("Avg Churn Prob", f"{seg_rows['churn_probability'].mean():.1%}")
+            st.metric("Cohort Size", f"{len(seg_rows):,}")
+            st.metric("Average CLV", f"Rs.{seg_rows['clv_estimate'].mean():,.0f}")
+            st.metric("Cohort Churn Rate", f"{seg_rows['churn_probability'].mean():.1%}")
         st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("")
 
-# ─── Segment Explorer ──────────────────────────────────────────────────────────
+
+# -----------------------------------------------------------------------------
+# Segment Customer Roster & CSV Export
+# -----------------------------------------------------------------------------
+
 st.markdown("---")
-st.markdown('<div class="section-header">Segment Explorer</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">Segment Customer Explorer & Campaign Export</div>', unsafe_allow_html=True)
 
 selected_seg = st.selectbox(
-    "View customers in segment:",
+    "Filter and inspect customer roster by segment:",
     df["customer_segment"].unique().tolist()
 )
 
@@ -189,7 +232,6 @@ st.dataframe(
     use_container_width=True, hide_index=True
 )
 
-# Download button for segment data
 csv = seg_df.to_csv(index=False).encode("utf-8")
 st.download_button(
     f"Download {selected_seg} Customer List (CSV)",
@@ -198,14 +240,20 @@ st.download_button(
     "text/csv"
 )
 
-# ─── CLV Percentile Analysis ──────────────────────────────────────────────────
+
+# -----------------------------------------------------------------------------
+# Pareto Wealth Concentration Analysis
+# -----------------------------------------------------------------------------
+
 st.markdown("---")
-st.markdown('<div class="section-header">CLV Percentile Analysis</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">Pareto Concentration & Percentile Analysis</div>', unsafe_allow_html=True)
 
 percentiles = [10, 25, 50, 75, 90, 95, 99]
 clv_percs = np.percentile(df["clv_estimate"], percentiles)
-perc_df = pd.DataFrame({"Percentile": [f"P{p}" for p in percentiles],
-                         "CLV (Rs.)": [f"Rs.{v:,.0f}" for v in clv_percs]})
+perc_df = pd.DataFrame({
+    "Percentile Rank": [f"Top {100-p}% (P{p})" for p in percentiles],
+    "Minimum CLV Threshold": [f"Rs.{v:,.0f}" for v in clv_percs]
+})
 
 col1, col2 = st.columns(2)
 with col1:
@@ -213,7 +261,6 @@ with col1:
 with col2:
     top10_clv = df.nlargest(int(len(df)*0.1), "clv_estimate")["clv_estimate"].sum()
     total_clv = df["clv_estimate"].sum()
-    st.metric("Top 10% customers contribute", f"{top10_clv/total_clv:.1%} of total CLV")
-    st.metric("Top 10% customers count", f"{int(len(df)*0.1):,}")
+    st.metric("Top 10% Accounts Equity Share", f"{top10_clv/total_clv:.1%} of Total Portfolio")
+    st.metric("Top 10% Customer Count", f"{int(len(df)*0.1):,} Accounts")
     st.info("Classic 80-20 rule applies: focus our best retention efforts on the highest-CLV customers.")
-

@@ -2,13 +2,16 @@
 Database Setup and Management Module
 =====================================
 
-This module handles all PostgreSQL database operations:
-- Creating tables for customer data, predictions, and segments
-- Loading CSV data into the database
-- Fetching data back for modeling and the Streamlit app
+This module handles all database persistence operations using SQLAlchemy:
+- Establishing a reliable connection to PostgreSQL (with an automatic SQLite fallback)
+- Creating relational schemas for customer records, model predictions, segments, and campaign simulations
+- Ingesting raw customer records from CSV into structured database tables
+- Exporting and reading records for both batch model training and interactive Streamlit querying
 
-NOTE: PostgreSQL connection string is set in config.py
-      If PostgreSQL is unavailable, falls back to SQLite for demo purposes.
+Why this matters:
+In production data science systems, models should not simply read raw CSV files. Storing customer
+profiles, churn probabilities, and campaign simulations in an ACID-compliant database enables
+auditability, scheduled re-training, and integration with CRM platforms.
 """
 
 import os
@@ -19,22 +22,30 @@ from sqlalchemy.exc import OperationalError
 import warnings
 warnings.filterwarnings("ignore")
 
-# --- connection helper --------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Database Connection Helper
+# -----------------------------------------------------------------------------
 
 def get_engine(use_sqlite_fallback: bool = True):
     """
-    Returns a SQLAlchemy engine.
-    Tries PostgreSQL first; if that fails and fallback=True, uses SQLite.
+    Returns an active SQLAlchemy engine.
     
-    We learned from experience: always have a fallback for demos!
+    Design Decision:
+    We attempt connecting to PostgreSQL first using standard environment variables
+    or a default local connection URI. If PostgreSQL is offline or credentials fail,
+    we smoothly fall back to a local SQLite database in the 'outputs' directory.
+    
+    This ensures the pipeline and Streamlit app work out-of-the-box on any reviewer machine
+    without requiring manual local PostgreSQL configuration.
     """
     pg_url = os.getenv(
         "DATABASE_URL",
         "postgresql://postgres:password@localhost:5432/telecom_churn"
     )
     try:
+        # pool_pre_ping checks if the existing database connection is still alive before querying
         engine = create_engine(pg_url, pool_pre_ping=True)
-        # quick connection test
+        # Verify connection with a lightweight probe query
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         print("[DB] Connected to PostgreSQL successfully.")
@@ -42,21 +53,29 @@ def get_engine(use_sqlite_fallback: bool = True):
     except Exception as e:
         if use_sqlite_fallback:
             print(f"[DB] PostgreSQL unavailable ({type(e).__name__}). Falling back to SQLite.")
+            # Resolve directory path relative to project structure
             sqlite_path = os.path.join(
                 os.path.dirname(__file__), "..", "..", "outputs", "telecom_churn.db"
             )
             os.makedirs(os.path.dirname(sqlite_path), exist_ok=True)
             engine = create_engine(f"sqlite:///{sqlite_path}")
-            print(f"[DB] Using SQLite at: {sqlite_path}")
+            print(f"[DB] Using SQLite fallback database at: {sqlite_path}")
             return engine
         else:
             raise
 
 
-# --- schema creation ----------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Relational Schema Definition
+# -----------------------------------------------------------------------------
 
+# We define 4 relational tables:
+# 1. customers: stores historical telecom features
+# 2. predictions: stores scored churn probabilities, predicted survival months, and CLV
+# 3. segments: stores cluster level aggregates and business playbooks
+# 4. campaign_log: tracks historical simulation runs from the ROI simulator
 CREATE_TABLES_SQL = """
--- Raw customer data as imported from the CSV
+-- Table 1: Raw customer baseline features
 CREATE TABLE IF NOT EXISTS customers (
     customer_id         TEXT PRIMARY KEY,
     gender              TEXT,
@@ -81,7 +100,7 @@ CREATE TABLE IF NOT EXISTS customers (
     churn               TEXT
 );
 
--- Model predictions: churn probability, CLV, survival estimate
+-- Table 2: Model predictions & individual scoring
 CREATE TABLE IF NOT EXISTS predictions (
     customer_id         TEXT PRIMARY KEY,
     churn_probability   REAL,
@@ -92,7 +111,7 @@ CREATE TABLE IF NOT EXISTS predictions (
     customer_segment    TEXT
 );
 
--- Segment summary for reporting
+-- Table 3: Segment summaries for high-level dashboard metrics
 CREATE TABLE IF NOT EXISTS segments (
     segment_id          INTEGER PRIMARY KEY,
     segment_name        TEXT,
@@ -103,7 +122,7 @@ CREATE TABLE IF NOT EXISTS segments (
     customer_count      INTEGER
 );
 
--- ROI campaign simulation log
+-- Table 4: Marketing simulation history and audit trail
 CREATE TABLE IF NOT EXISTS campaign_log (
     campaign_id         INTEGER PRIMARY KEY AUTOINCREMENT,
     run_at              TEXT,
@@ -116,7 +135,7 @@ CREATE TABLE IF NOT EXISTS campaign_log (
 );
 """
 
-# SQLite doesn't support AUTOINCREMENT in the same way; patch it
+# SQLite treats AUTOINCREMENT differently than PostgreSQL, so we adapt syntax cleanly
 CREATE_TABLES_SQL_SQLITE = CREATE_TABLES_SQL.replace(
     "INTEGER PRIMARY KEY AUTOINCREMENT",
     "INTEGER PRIMARY KEY"
@@ -124,33 +143,44 @@ CREATE_TABLES_SQL_SQLITE = CREATE_TABLES_SQL.replace(
 
 
 def create_tables(engine):
-    """Create all tables if they don't already exist."""
-    sql = CREATE_TABLES_SQL_SQLITE  # works for both SQLite & modern PostgreSQL
+    """
+    Executes schema creation statements against the database engine.
+    Splits multi-statement blocks and executes sequentially in a transactional block.
+    """
+    sql = CREATE_TABLES_SQL_SQLITE
     with engine.begin() as conn:
         for statement in sql.strip().split(";"):
             stmt = statement.strip()
             if stmt:
                 conn.execute(text(stmt))
-    print("[DB] Tables created / verified.")
+    print("[DB] Tables created / verified successfully.")
 
 
-# --- data loading -------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Data Ingestion & Querying Utilities
+# -----------------------------------------------------------------------------
 
 def load_csv_to_db(csv_path: str, engine, if_exists: str = "replace") -> int:
     """
-    Reads the raw Telco CSV, cleans column names, and writes to 'customers' table.
-    Returns number of rows loaded.
+    Reads the raw Telco CSV, handles known anomalies (like whitespace TotalCharges),
+    standardizes column headers to snake_case, and loads records into the 'customers' table.
+    
+    Returns:
+        int: Number of rows successfully inserted.
     """
     df = pd.read_csv(csv_path)
 
-    # --- light cleaning ---
-    # TotalCharges has some spaces where tenure=0, coerce to numeric
+    # Data Quality Fix:
+    # In the raw dataset, TotalCharges is stored as a string and contains blank spaces ' '
+    # for brand new customers where tenure == 0.
+    # Coercing to numeric turns those blanks into NaN.
     df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
-    # For rows where TotalCharges is NaN, tenure is 0 => fill with MonthlyCharges
+    
+    # For new joiners with tenure == 0, their total charges equal their first month's charges
     mask = df["TotalCharges"].isna()
     df.loc[mask, "TotalCharges"] = df.loc[mask, "MonthlyCharges"]
 
-    # Rename columns to snake_case to match our schema
+    # Map raw CSV PascalCase headers into clean database snake_case
     rename_map = {
         "customerID": "customer_id",
         "gender": "gender",
@@ -176,32 +206,35 @@ def load_csv_to_db(csv_path: str, engine, if_exists: str = "replace") -> int:
     }
     df = df.rename(columns=rename_map)
 
-    # Write to database
+    # Persist directly via SQLAlchemy
     df.to_sql("customers", engine, if_exists=if_exists, index=False)
     print(f"[DB] Loaded {len(df)} customer records into 'customers' table.")
     return len(df)
 
 
 def fetch_customers(engine) -> pd.DataFrame:
-    """Pull all customers from the database."""
+    """Retrieves all baseline customer records from the database."""
     return pd.read_sql("SELECT * FROM customers", engine)
 
 
 def save_predictions(df_pred: pd.DataFrame, engine):
-    """Upsert model predictions back to database."""
+    """Saves scored model predictions into the 'predictions' table."""
     df_pred.to_sql("predictions", engine, if_exists="replace", index=False)
     print(f"[DB] Saved {len(df_pred)} prediction rows.")
 
 
 def save_segments(df_seg: pd.DataFrame, engine):
-    """Save segment summary statistics."""
+    """Saves high-level segment statistics into the 'segments' table."""
     df_seg.to_sql("segments", engine, if_exists="replace", index=False)
     print(f"[DB] Saved {len(df_seg)} segment rows.")
 
 
 def log_campaign(engine, discount: float, n_customers: int,
                  expected_retained: int, benefit: float):
-    """Append a campaign simulation run to the log."""
+    """
+    Logs an interactive campaign simulation run from the Streamlit ROI Simulator.
+    Calculates total cost and net percentage ROI to provide an audit trail of marketing tests.
+    """
     from datetime import datetime
     cost = discount * n_customers
     roi = (benefit - cost) / cost * 100 if cost > 0 else 0.0
@@ -215,12 +248,15 @@ def log_campaign(engine, discount: float, n_customers: int,
         "roi_pct": roi,
     }
     pd.DataFrame([row]).to_sql("campaign_log", engine, if_exists="append", index=False)
-    print(f"[DB] Campaign logged. ROI={roi:.1f}%")
+    print(f"[DB] Campaign logged: discount=Rs.{discount}, cost=Rs.{cost:,.0f}, ROI={roi:.1f}%")
 
 
-# --- quick test ---------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Quick Standalone Test
+# -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    # Test connection and table creation
     engine = get_engine()
     create_tables(engine)
     csv_path = os.path.join(
@@ -230,4 +266,4 @@ if __name__ == "__main__":
     if os.path.exists(csv_path):
         n = load_csv_to_db(csv_path, engine)
         df = fetch_customers(engine)
-        print(f"Fetched {len(df)} rows back. Columns: {df.columns.tolist()}")
+        print(f"[DB Test] Read back {len(df)} rows. Sample columns: {df.columns.tolist()[:6]}")
