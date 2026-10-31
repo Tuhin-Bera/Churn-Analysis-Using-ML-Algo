@@ -1,8 +1,6 @@
 """
 Page 2: Individual Churn Predictor with SHAP
 ==============================================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 This page lets business users look up any customer and see:
 1. Their churn probability (with risk level)

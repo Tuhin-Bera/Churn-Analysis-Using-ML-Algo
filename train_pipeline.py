@@ -1,8 +1,6 @@
 """
 Master Training Pipeline
 =========================
-Author: Tuhin Bera | Data Science Intern -- Nexvia Technologies
-Date: October 2026
 
 Run this script ONCE before launching the Streamlit app.
 It will:

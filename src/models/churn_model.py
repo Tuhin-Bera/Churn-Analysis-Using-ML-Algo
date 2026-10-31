@@ -1,11 +1,9 @@
 """
 LightGBM Churn Classifier + SHAP Explainer
 ============================================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 This module trains the main churn prediction model.
-I chose LightGBM over XGBoost because:
+We chose LightGBM over XGBoost because:
   1. Faster training on this size dataset
   2. Better handling of categorical features
   3. Lower memory usage

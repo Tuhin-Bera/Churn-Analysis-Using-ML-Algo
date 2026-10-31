@@ -1,8 +1,6 @@
 """
 Page 3: Survival Analysis
 ==========================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 Shows Kaplan-Meier survival curves and Cox PH model results.
 """

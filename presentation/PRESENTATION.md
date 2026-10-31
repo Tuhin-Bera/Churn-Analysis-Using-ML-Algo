@@ -1,10 +1,8 @@
 # Customer Lifetime Value & Churn Intelligence System
 ## 10-Minute Final Presentation
 
-**Presenter:** Tuhin Bera | Data Science Intern  
-**Company:** Nexvia Technologies  
-**Intern ID:** NEX-INT-2026-3974  
-**Project:** DS-01 | Deadline: 20 November 2026
+**Track:** Data Science  
+**Project:** DS-01
 
 ---
 
@@ -51,7 +49,7 @@ CSV  -->  PostgreSQL/SQLite  -->  Feature Engineering  -->  5 ML Models
 
 ### Why feature engineering matters more than model choice
 
-I created 13 engineered features from the original 20 columns:
+We created 13 engineered features from the original 20 columns:
 
 | Feature | Logic | Business Meaning |
 |---------|-------|-----------------|
@@ -84,7 +82,7 @@ I created 13 engineered features from the original 20 columns:
 | Recall | **76.2%** |
 | F1 Score | 63.1% |
 
-> I optimized for **recall** over precision — in churn, missing a churner is worse than a false alarm.
+> We optimized for **recall** over precision — in churn, missing a churner is worse than a false alarm.
 
 ### SHAP: Top 5 Churn Drivers
 1. `contract_risk` — month-to-month customers are 2.35× more likely to churn
@@ -124,7 +122,7 @@ I created 13 engineered features from the original 20 columns:
 
 ### The Problem with Standard Churn Models
 
-If you target the top 100 churners with discounts:
+If we target the top 100 churners with discounts:
 - 30 might stay due to the offer (**Persuadables** — good!)
 - 20 would stay anyway (**Sure Things** — money wasted)
 - 30 will churn regardless (**Lost Causes** — money wasted)
@@ -149,7 +147,7 @@ Uplift Score = P(stay | offered) - P(stay | not offered)
 
 ### Data Limitation (honesty matters)
 The IBM Telco dataset has no randomized treatment/control data.
-I simulated treatment assignment using a business-realistic rule and
+We simulated treatment assignment using a business-realistic rule and
 used CausalML's S-Learner as a meta-learner for ITE estimation.
 Production deployment would require an A/B experiment.
 
@@ -250,7 +248,7 @@ SQLite          -->  CLV (DCF)              - Survival Analysis
 - SHAP computation was slow for 7,000 customers — sampled 300 for the summary
 - Feature names with special characters needed encoding for database compatibility
 
-### What I'd Do With More Time
+### What We Would Do With More Time
 1. Hyperparameter tuning with Optuna (full grid search)
 2. Run an actual A/B test to get real uplift data
 3. Add time-series churn data (usage trends over time)
@@ -258,7 +256,7 @@ SQLite          -->  CLV (DCF)              - Survival Analysis
 5. Add email/CRM integration for automated campaign trigger
 
 ### Individual Reflection
-This project taught me that **the model is only 20% of the work.**
+This project taught us that **the model is only 20% of the work.**
 Understanding the business problem (Step 1), cleaning data (Step 2),
 and communicating results clearly (Streamlit app) are equally important.
 The ROI simulator was the most valuable deliverable because it directly
@@ -276,9 +274,4 @@ translates ML output into business decisions.
 - [x] Individual reflection (Slide 10)
 - [x] PostgreSQL integration (with SQLite fallback)
 - [x] All 7 required technologies used
-
----
-
-*Nexvia Technologies | Data Science Internship | October 2026*  
-*Tuhin Bera | NEX-INT-2026-3974*
 

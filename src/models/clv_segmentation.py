@@ -1,17 +1,15 @@
 """
 Customer Segmentation & CLV Module
 =====================================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 Two parts:
 1. CLV (Customer Lifetime Value) — how much is each customer worth going forward?
 2. K-Means clustering — group customers into actionable segments
 
-I use the survival model's predicted remaining months for CLV estimation,
+We use the survival model's predicted remaining months for CLV estimation,
 which makes it more sophisticated than just tenure × monthly_charges.
 
-For clustering, I tried K-Means with k=2,3,4,5 and used elbow method + 
+For clustering, we tried K-Means with k=2,3,4,5 and used elbow method + 
 silhouette scores to pick k=4 (it gave the most interpretable segments).
 """
 

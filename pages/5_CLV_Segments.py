@@ -1,8 +1,6 @@
 """
 Page 5: CLV & Customer Segmentation
 ======================================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 Shows CLV distribution and K-Means customer segments with actionable insights.
 """
@@ -120,7 +118,7 @@ st.markdown('<div class="section-header">Segment Profiles & Strategies</div>', u
 segment_info = {
     "High-Value Loyal": {
         "style": "seg-high",
-        "description": "Long-tenure, high-spending customers with low churn probability. These are your best customers.",
+        "description": "Long-tenure, high-spending customers with low churn probability. These are our best customers.",
         "strategy": "Reward with premium loyalty programs. Upsell to higher tiers. They're worth keeping at almost any cost.",
         "kpis": ["Highest CLV", "Lowest churn risk", "Longest tenure"],
     },
@@ -217,5 +215,5 @@ with col2:
     total_clv = df["clv_estimate"].sum()
     st.metric("Top 10% customers contribute", f"{top10_clv/total_clv:.1%} of total CLV")
     st.metric("Top 10% customers count", f"{int(len(df)*0.1):,}")
-    st.info("Classic 80-20 rule applies: focus your best retention efforts on the highest-CLV customers.")
+    st.info("Classic 80-20 rule applies: focus our best retention efforts on the highest-CLV customers.")
 

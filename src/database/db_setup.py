@@ -1,8 +1,6 @@
 """
 Database Setup and Management Module
 =====================================
-Author: Tuhin Bera | Data Science Intern - Nexvia Technologies
-Date: October 2026
 
 This module handles all PostgreSQL database operations:
 - Creating tables for customer data, predictions, and segments
@@ -28,7 +26,7 @@ def get_engine(use_sqlite_fallback: bool = True):
     Returns a SQLAlchemy engine.
     Tries PostgreSQL first; if that fails and fallback=True, uses SQLite.
     
-    I learned from experience: always have a fallback for demos!
+    We learned from experience: always have a fallback for demos!
     """
     pg_url = os.getenv(
         "DATABASE_URL",

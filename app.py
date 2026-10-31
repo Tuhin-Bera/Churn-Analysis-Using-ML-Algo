@@ -2,8 +2,6 @@
 app.py - Main Streamlit Entry Point
 =====================================
 Customer Lifetime Value & Churn Intelligence System
-Nexvia Technologies | Data Science Internship Project
-Author: Tuhin Bera | October 2026
 
 This is the main Streamlit app. It acts as the home/overview page
 and sets up the sidebar navigation for all sub-pages.
@@ -165,9 +163,7 @@ with st.sidebar:
     st.page_link("pages/6_ROI_Simulator.py", label="📈 ROI Simulator",      icon=None)
 
     st.markdown("---")
-    st.markdown("**Intern:** Tuhin Bera")
     st.markdown("**Track:** Data Science")
-    st.markdown("**ID:** NEX-INT-2026-3974")
 
 
 # ─── Main Content ─────────────────────────────────────────────────────────────
@@ -306,6 +302,6 @@ st.info("""
 - Navigate using the sidebar links above
 - Start with **Exploratory Analysis** to understand the data
 - Use **Churn Predictor** to look up individual customers
-- Use **ROI Simulator** to model your retention campaign budget
+- Use **ROI Simulator** to model our retention campaign budget
 """)
 

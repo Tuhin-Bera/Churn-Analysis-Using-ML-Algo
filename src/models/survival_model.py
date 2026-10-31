@@ -1,8 +1,6 @@
 """
 Survival Analysis Module — Lifelines (Kaplan-Meier + Cox PH)
 =============================================================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 Survival analysis answers: "How long will a customer stay?"
 - Kaplan-Meier: non-parametric survival curve (no assumptions about distribution)
@@ -153,7 +151,7 @@ def fit_cox_model(survival_df: pd.DataFrame) -> CoxPHFitter:
     hazard ratio > 1 -> increases churn risk
     hazard ratio < 1 -> decreases churn risk
     
-    I'm careful to only include numeric features and remove multicollinear ones.
+    We are careful to only include numeric features and remove multicollinear ones.
     """
     cox_features = [
         "duration", "event",

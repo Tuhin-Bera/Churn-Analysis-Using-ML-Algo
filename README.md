@@ -1,7 +1,6 @@
 # 📡 Customer Lifetime Value & Churn Intelligence System
 
-**DS-01 | Nexvia Technologies Data Science Internship**  
-**Intern:** Tuhin Bera | **ID:** NEX-INT-2026-3974 | **Deadline:** 20 November 2026
+**DS-01 | Nexvia Technologies Data Science Track**
 
 ---
 
@@ -167,5 +166,5 @@ To use PostgreSQL:
 
 ---
 
-*Nexvia Technologies | Data Science Track | October 2026*
+*Nexvia Technologies | Data Science Track*
 

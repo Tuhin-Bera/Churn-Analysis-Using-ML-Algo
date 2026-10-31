@@ -1,12 +1,10 @@
 """
 Page 6: ROI Simulator
 ======================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 The crown jewel of the project — the ROI calculator.
-Business users can simulate: "If I offer a Rs.X discount to Y customers,
-what's my expected return?"
+Business users can simulate: "If we offer a Rs.X discount to Y customers,
+what is our expected return?"
 
 The simulator uses uplift scores to estimate how many customers will actually
 respond (rather than assuming all will), making it much more realistic than
@@ -51,7 +49,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📈 ROI Simulator — Retention Campaign Optimizer")
-st.caption("Design your retention campaign and see the expected cost vs. savings.")
+st.caption("Design our retention campaign and see the expected cost vs. savings.")
 
 # ─── Load data ────────────────────────────────────────────────────────────────
 @st.cache_data
@@ -199,7 +197,7 @@ st.markdown("---")
 st.markdown('<div class="section-header">Campaign Results Forecast</div>', unsafe_allow_html=True)
 
 if n_targeted == 0:
-    st.warning("No customers match your targeting criteria. Try relaxing the filters.")
+    st.warning("No customers match our targeting criteria. Try relaxing the filters.")
     st.stop()
 
 r_col1, r_col2, r_col3, r_col4 = st.columns(4)
@@ -283,7 +281,7 @@ current_line = alt.Chart(
 ).mark_rule(color="yellow", strokeDash=[4, 4]).encode(x="x:Q")
 
 st.altair_chart(roi_line + zero_line + current_line, use_container_width=True)
-st.caption(f"Yellow dashed line = your current discount (Rs.{discount_amount}). Red dashed = break-even.")
+st.caption(f"Yellow dashed line = current discount (Rs.{discount_amount}). Red dashed = break-even.")
 
 # ─── Campaign Budget Optimizer ────────────────────────────────────────────────
 st.markdown("---")

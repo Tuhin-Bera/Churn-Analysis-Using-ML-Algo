@@ -1,8 +1,6 @@
 """
 Page 4: Uplift Modeling
 =========================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 Uplift modeling: who will respond to our offer?
 Not all at-risk customers should get discounts.
@@ -47,9 +45,9 @@ with st.expander("📚 Understanding Uplift Modeling (click to expand)"):
     st.markdown("""
     ### Why standard churn prediction isn't enough
 
-    If you just target the **highest-risk churners** with discounts, you waste money on:
+    If we just target the **highest-risk churners** with discounts, we waste money on:
     - **Lost Causes** — they'll churn regardless
-    - **Do-Not-Disturb** — your offer might actually irritate them
+    - **Do-Not-Disturb** — our offer might actually irritate them
     - **Sure Things** — they'd stay anyway
 
     ### The four uplift quadrants
@@ -64,12 +62,12 @@ with st.expander("📚 Understanding Uplift Modeling (click to expand)"):
     ### How we estimated uplift (data limitation note)
 
     The IBM Telco dataset doesn't have randomized treatment/control data.
-    So I used a **meta-learner (S-Learner)** approach:
+    So we used a **meta-learner (S-Learner)** approach:
     1. Simulated treatment assignment (which customers received an offer) using business logic
     2. Simulated post-offer outcomes with a realistic 20% lift effect
     3. Trained a CausalML S-Learner to estimate Individual Treatment Effects (ITE)
     
-    In a real production setting, you'd run an A/B test to get true causal data.
+    In a real production setting, we would run an A/B test to get true causal data.
     """)
 
 # ─── Load data ────────────────────────────────────────────────────────────────

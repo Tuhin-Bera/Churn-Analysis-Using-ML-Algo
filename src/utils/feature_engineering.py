@@ -1,11 +1,9 @@
 """
 Feature Engineering & Preprocessing Module
 ============================================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 This is where the data transformation magic happens.
-I spent a lot of time thinking about which features actually make sense
+We spent a lot of time thinking about which features actually make sense
 from a business perspective, not just from a pure ML standpoint.
 
 Key ideas:
@@ -46,7 +44,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Creates additional features on top of the raw columns.
     
-    I derived these after doing EDA — each one has a business justification.
+    We derived these after doing EDA — each one has a business justification.
     """
     df = df.copy()
 
@@ -110,7 +108,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
 # --- encoding for ML ----------------------------------------------------------
 
-# These are the features I'll actually feed to LightGBM
+# These are the features we will feed to LightGBM
 FEATURE_COLUMNS = [
     "tenure",
     "MonthlyCharges",

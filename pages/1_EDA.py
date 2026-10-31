@@ -1,11 +1,9 @@
 """
 Page 1: Exploratory Data Analysis
 =====================================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
-EDA is always the first thing I do before building any model.
-You need to understand your data before you can model it.
+EDA is always the first thing we do before building any model.
+We need to understand our data before we can model it.
 
 This page shows:
 - Distribution of key features

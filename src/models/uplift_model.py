@@ -1,8 +1,6 @@
 """
 Uplift Modeling Module — CausalML
 ===================================
-Author: Tuhin Bera | Data Science Intern
-Date: October 2026
 
 Uplift modeling answers a subtler question than churn prediction:
 "Which customers will stay BECAUSE of our offer, not despite it?"
@@ -14,14 +12,14 @@ There are 4 types of customers in any retention campaign:
   4. Do Not Disturb — might churn IF offered (rare, but real)
 
 Since we don't have a real randomized experiment (treatment/control assignment),
-I'm using a meta-learner approach (S-Learner, T-Learner) and simulating
+we use a meta-learner approach (S-Learner, T-Learner) and simulate
 treatment assignment based on a plausible business rule.
 
-This is academically honest — I explicitly document the limitation.
+This is academically honest — we explicitly document the limitation.
 
 NOTE ON DATA LIMITATION:
   True uplift modeling requires randomized control trial data.
-  The IBM Telco dataset doesn't have this. So I simulate treatment assignment
+  The IBM Telco dataset doesn't have this. So we simulate treatment assignment
   using a rule that mimics what a real business might do:
     - Customers at medium-high churn risk (30-70%) get offered a discount
     - Others don't
