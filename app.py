@@ -165,8 +165,11 @@ def load_meta():
 # -----------------------------------------------------------------------------
 
 with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/000000/signal-tower.png", width=60)
-    st.markdown("## Churn Intelligence")
+    logo_path = os.path.join(ROOT, "assets", "logo.svg")
+    if os.path.exists(logo_path):
+        st.image(logo_path, use_container_width=True)
+    else:
+        st.markdown("## 📡 Churn Intelligence")
     st.markdown("*Nexvia Technologies | DS-01*")
     st.markdown("---")
 
@@ -188,11 +191,17 @@ with st.sidebar:
 # Executive Landing Dashboard
 # -----------------------------------------------------------------------------
 
-# Primary Hero Callout
-st.markdown("""
+# Primary hero section: display project banner from assets/ when available,
+# otherwise render the styled HTML callout card as a graceful fallback.
+banner_path = os.path.join(ROOT, "assets", "project_banner.png")
+if os.path.exists(banner_path):
+    st.image(banner_path, use_container_width=True)
+    st.markdown("---")
+else:
+    st.markdown("""
 <div class="hero-banner">
-    <h1>📡 Customer Lifetime Value & Churn Intelligence System</h1>
-    <p>Predicting churn, estimating survival, computing CLV, and optimizing retention campaigns — all in one place.</p>
+    <h1>&#128225; Customer Lifetime Value &amp; Churn Intelligence System</h1>
+    <p>Predicting churn, estimating survival, computing CLV, and optimizing retention campaigns &mdash; all in one place.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -328,6 +337,18 @@ hist = alt.Chart(chart_df).mark_bar(color="#667eea", opacity=0.8).encode(
 ).configure_view(stroke=None)
 
 st.altair_chart(hist, use_container_width=True)
+
+
+st.markdown("---")
+
+# Architecture diagram from assets/ — gives a bird-eye view of the pipeline to
+# any reader who visits the landing page for the first time.
+arch_path = os.path.join(ROOT, "assets", "architecture_diagram.png")
+if os.path.exists(arch_path):
+    st.markdown("### System Architecture Overview")
+    st.image(arch_path, use_container_width=True,
+             caption="End-to-End Churn Intelligence Pipeline: Data Ingestion -> Feature Engineering -> ML Models -> Streamlit Dashboard")
+    st.markdown("---")
 
 st.info("""
 **How to use this app:**

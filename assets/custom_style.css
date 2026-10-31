@@ -1,0 +1,91 @@
+/*
+================================================================================
+Custom Theme & Reusable UI Component Stylesheets
+================================================================================
+This CSS defines clean typography, dark-theme card elevations, metric badges,
+and smooth responsive transitions for our Streamlit UI and HTML presentations.
+*/
+
+:root {
+  --bg-primary: #0f172a;
+  --bg-card: #1e293b;
+  --bg-card-hover: #334155;
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-amber: #f59e0b;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border-subtle: #334155;
+}
+
+/* Metric KPI Cards */
+.kpi-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-blue);
+}
+
+.kpi-title {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.kpi-value {
+  color: var(--text-primary);
+  font-size: 1.85rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.kpi-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.80rem;
+  margin-top: 6px;
+}
+
+/* Badges for Segments */
+.badge-persuadable {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid #059669;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.badge-lost-cause {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid #dc2626;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.badge-sure-thing {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid #2563eb;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+

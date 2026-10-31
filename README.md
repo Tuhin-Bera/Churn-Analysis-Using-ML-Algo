@@ -66,8 +66,16 @@ part 3/
 │   ├── clv_distribution.png
 │   └── customer_segments.png
 │
+├── assets/                         # Static media and design resources
+│   ├── project_banner.png          # Header banner shown on Streamlit landing page
+│   ├── architecture_diagram.png    # End-to-end system architecture visualization
+│   ├── logo.svg                    # Application logo (SVG, scalable)
+│   └── custom_style.css            # Reusable CSS card/badge classes
+│
 └── presentation/
-    └── PRESENTATION.md             # 10-minute final presentation
+    ├── PRESENTATION.md             # 10-minute executive presentation (markdown)
+    ├── index.html                  # Interactive HTML slide deck (browser, arrow keys)
+    └── generate_presentation.py    # Presentation asset verification utility
 ```
 
 ---
