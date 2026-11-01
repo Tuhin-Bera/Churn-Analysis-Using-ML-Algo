@@ -130,3 +130,7 @@ tmp/
 *.bak
 *.swp
 *.swo
+update_*.py
+patch_*.py
+check_*.py
+audit*.py
