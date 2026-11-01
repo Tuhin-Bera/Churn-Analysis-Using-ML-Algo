@@ -34,3 +34,4 @@ magicEnabled = true
 
 [logger]
 level = "warning"
+

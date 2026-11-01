@@ -72,31 +72,25 @@ part 3/
 │   ├── logo.svg                    # Application logo (SVG, scalable)
 │   └── custom_style.css            # Reusable CSS card/badge classes
 │
-└── presentation/
-    ├── PRESENTATION.md             # 10-minute executive presentation (markdown)
-    ├── index.html                  # Interactive HTML slide deck (browser, arrow keys)
+└── presentation/                   # Local portfolio material (gitignored, not deployed)
+    ├── PRESENTATION.md             # 10-minute executive presentation
+    ├── index.html                  # Interactive HTML slide deck (arrow-key navigation)
     └── generate_presentation.py    # Presentation asset verification utility
 ```
 
 ---
 
-## Quick Start
+## Quick Start (Local)
 
 ### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Run the training pipeline (only needed once)
+### 2. Run the training pipeline (once)
 ```bash
 python train_pipeline.py
 ```
-
-This will:
-- Set up the database (PostgreSQL if available, else SQLite)
-- Load the dataset
-- Train all ML models
-- Generate all outputs and plots
 
 ### 3. Launch the Streamlit app
 ```bash
@@ -105,18 +99,32 @@ streamlit run app.py
 
 ---
 
+## Deploy to Render
+
+1. Push this repository to **GitHub**.
+2. Go to [render.com](https://render.com) -> **New Web Service** -> connect the GitHub repo.
+3. Render settings:
+   - **Environment:** Python
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `sh setup.sh && streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false`
+4. Add any required **Environment Variables** from `.env.example`.
+5. Click **Deploy**. On first cold-start, `setup.sh` runs `train_pipeline.py` automatically.
+
+> The raw dataset (`data/WA_Fn-UseC_-Telco-Customer-Churn.csv`) is committed to git so Render has it during training.
+
+---
+
 ## PostgreSQL Setup (Optional)
 
 By default, the system uses SQLite for portability.
-To use PostgreSQL:
+To use PostgreSQL, set the environment variable in Render:
 
-1. Create a database: `CREATE DATABASE telecom_churn;`
-2. Set the environment variable:
-   ```bash
-   set DATABASE_URL=postgresql://user:password@localhost:5432/telecom_churn
-   ```
+```
+DATABASE_URL=postgresql://user:password@host:5432/telecom_churn
+```
 
 ---
+
 
 ## Model Results
 
