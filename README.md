@@ -2,6 +2,14 @@
 
 End-to-End Retention Analytics, Causal Uplift Modeling, and Customer Lifetime Value Decision Engine.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://churn-analysis-using-ml-algo.onrender.com/)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
+> 🚀 **Live Interactive Application:** [https://churn-analysis-using-ml-algo.onrender.com/](https://churn-analysis-using-ml-algo.onrender.com/)
+
 ![Project Banner](assets/project_banner.png)
 
 ---
@@ -244,6 +252,8 @@ streamlit run app.py
 ---
 
 ## Deploy to Render (Cloud Hosting)
+
+> 🌐 **Production Instance:** [https://churn-analysis-using-ml-algo.onrender.com/](https://churn-analysis-using-ml-algo.onrender.com/)
 
 1. Push this repository to **GitHub**.
 2. Log into [Render](https://render.com) and create a **New Web Service**.
