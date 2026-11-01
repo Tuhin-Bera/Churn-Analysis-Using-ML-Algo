@@ -198,12 +198,8 @@ The project is structured as an end-to-end modular pipeline where data ingestion
 │   ├── *.png                       # Generated diagnostic charts & survival curves
 │   └── .gitkeep
 │
-├── notebooks/                      # Local exploratory analysis (gitignored)
-│   └── churn_intelligence_workflow.ipynb  # Complete 33-cell standalone workflow
-│
-└── presentation/                   # Local presentation deck (gitignored)
-    ├── PRESENTATION.md             # 10-minute executive presentation with speaker notes
-    └── index.html                  # Interactive HTML slide deck (arrow-key navigation)
+└── notebooks/                      # Local exploratory analysis (gitignored)
+    └── churn_intelligence_workflow.ipynb  # Complete 33-cell standalone workflow
 ```
 
 ---
