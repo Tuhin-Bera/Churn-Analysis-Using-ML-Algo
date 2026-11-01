@@ -38,10 +38,17 @@ def get_engine(use_sqlite_fallback: bool = True):
     This ensures the pipeline and Streamlit app work out-of-the-box on any reviewer machine
     without requiring manual local PostgreSQL configuration.
     """
-    pg_url = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:password@localhost:5432/telecom_churn"
-    )
+    pg_url = os.getenv("DATABASE_URL")
+    if not pg_url:
+        pg_host = os.getenv("PG_HOST", "localhost")
+        pg_port = os.getenv("PG_PORT", "5432")
+        pg_db   = os.getenv("PG_DATABASE", "telecom_churn")
+        pg_user = os.getenv("PG_USER", "postgres")
+        pg_pass = os.getenv("PG_PASSWORD", "password")
+        pg_url  = f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
+    elif pg_url.startswith("postgres://"):
+        # Fix for cloud providers like Render / Heroku that still prefix URIs with postgres://
+        pg_url = pg_url.replace("postgres://", "postgresql://", 1)
     try:
         # pool_pre_ping checks if the existing database connection is still alive before querying
         engine = create_engine(pg_url, pool_pre_ping=True)
