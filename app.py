@@ -52,7 +52,7 @@ sys.path.insert(0, ROOT)
 # -----------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="Churn Intelligence System | Nexvia",
+    page_title="Customer Churn and CLV Intelligence System",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -180,7 +180,6 @@ with st.sidebar:
         st.image(logo_path, use_container_width=True)
     else:
         st.markdown("## 📡 Churn Intelligence")
-    st.markdown("*Nexvia Technologies | DS-01*")
     st.markdown("---")
 
     # Seamless page routing links
@@ -193,8 +192,6 @@ with st.sidebar:
     st.page_link("pages/5_CLV_Segments.py", label="💰 CLV & Segments",      icon=None)
     st.page_link("pages/6_ROI_Simulator.py", label="📈 ROI Simulator",      icon=None)
 
-    st.markdown("---")
-    st.markdown("**Track:** Data Science")
 
 
 # -----------------------------------------------------------------------------
